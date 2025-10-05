@@ -211,7 +211,7 @@ func logVisionRequest(r *http.Request, deviceEUI, authToken string, req *models.
 func analyzeImageWithLLaVA(imageBase64, prompt string) (string, error) {
 	// Prepare request for Ollama LLaVA API
 	requestBody := map[string]interface{}{
-		"model":  "llava:7b",
+		"model":  cfg.AI.LLaVAModel,
 		"prompt": prompt,
 		"images": []string{imageBase64},
 		"stream": false,
@@ -223,7 +223,8 @@ func analyzeImageWithLLaVA(imageBase64, prompt string) (string, error) {
 	}
 
 	// Send request to Ollama
-	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	ollamaURL := cfg.AI.OllamaURL + "/api/generate"
+	resp, err := http.Post(ollamaURL, "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to call LLaVA: %w", err)
 	}

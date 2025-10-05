@@ -25,6 +25,9 @@ func main() {
 	}
 	defer database.Close()
 
+	// Set configuration for handlers
+	handlers.SetConfig(cfg)
+
 	// Create router
 	r := mux.NewRouter()
 

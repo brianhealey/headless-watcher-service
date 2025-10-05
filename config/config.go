@@ -60,11 +60,11 @@ func Load() (*Config, error) {
 	token := flag.String("token", "", "Required authentication token (optional)")
 	dbPath := flag.String("db", "sensecap.db", "Path to SQLite database file")
 
-	whisperURL := flag.String("whisper-url", "http://localhost:5000", "Whisper STT service URL")
+	whisperURL := flag.String("whisper-url", "http://localhost:8835", "Whisper STT service URL (Python audio service)")
 	ollamaURL := flag.String("ollama-url", "http://localhost:11434", "Ollama LLM service URL")
 	ollamaModel := flag.String("ollama-model", "llama3.1:8b-instruct-q4_1", "Ollama model name")
 	llavaModel := flag.String("llava-model", "llava:7b", "LLaVA vision model name")
-	piperURL := flag.String("piper-url", "http://localhost:5000", "Piper TTS service URL")
+	piperURL := flag.String("piper-url", "http://localhost:8835", "Piper TTS service URL (Python audio service)")
 
 	apiSchema := flag.String("api-schema", "http", "API URL schema (http or https)")
 	apiBaseURL := flag.String("api-base-url", "", "API base URL (defaults to http://host:port)")

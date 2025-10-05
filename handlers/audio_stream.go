@@ -209,7 +209,8 @@ func logAudioStreamRequest(r *http.Request, deviceEUI, sessionID, authToken stri
 
 // transcribeAudio sends audio to the Python audio service for transcription
 func transcribeAudio(audioData []byte) (string, error) {
-	resp, err := http.Post("http://localhost:8835/transcribe", "application/octet-stream", bytes.NewReader(audioData))
+	whisperURL := cfg.AI.WhisperURL + "/transcribe"
+	resp, err := http.Post(whisperURL, "application/octet-stream", bytes.NewReader(audioData))
 	if err != nil {
 		return "", fmt.Errorf("failed to call transcription service: %w", err)
 	}
@@ -248,13 +249,14 @@ User input: "%s"
 Respond with ONLY the mode number (0, 1, or 2). No explanation.`, transcription)
 
 	requestBody := map[string]interface{}{
-		"model":  "llama3.1:8b-instruct-q4_1",
+		"model":  cfg.AI.OllamaModel,
 		"prompt": prompt,
 		"stream": false,
 	}
 
 	jsonData, _ := json.Marshal(requestBody)
-	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	ollamaURL := cfg.AI.OllamaURL + "/api/generate"
+	resp, err := http.Post(ollamaURL, "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		log.Printf("WARNING: Mode detection failed, defaulting to chat mode: %v", err)
 		return 0 // Default to chat mode
@@ -289,7 +291,7 @@ User said: "%s"
 Provide a brief, conversational response (1-2 sentences max).`, transcription)
 
 	requestBody := map[string]interface{}{
-		"model":  "llama3.1:8b-instruct-q4_1",
+		"model":  cfg.AI.OllamaModel,
 		"prompt": prompt,
 		"stream": false,
 	}
@@ -299,7 +301,7 @@ Provide a brief, conversational response (1-2 sentences max).`, transcription)
 		return "", fmt.Errorf("failed to marshal chat request: %w", err)
 	}
 
-	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	resp, err := http.Post(cfg.AI.OllamaURL + "/api/generate", "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to call Ollama for chat: %w", err)
 	}
@@ -468,7 +470,7 @@ func cleanLLMResponse(response string) string {
 // callOllamaSimple is a helper to call Ollama with a simple prompt
 func callOllamaSimple(prompt string) (string, error) {
 	requestBody := map[string]interface{}{
-		"model":  "llama3.1:8b-instruct-q4_1",
+		"model":  cfg.AI.OllamaModel,
 		"prompt": prompt,
 		"stream": false,
 	}
@@ -478,7 +480,7 @@ func callOllamaSimple(prompt string) (string, error) {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	resp, err := http.Post(cfg.AI.OllamaURL + "/api/generate", "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to call Ollama: %w", err)
 	}
@@ -503,7 +505,7 @@ func callOllamaSimple(prompt string) (string, error) {
 // DEPRECATED: Use processChatMode or processTaskMode instead
 func processWithOllama(text string) (string, error) {
 	requestBody := map[string]interface{}{
-		"model":  "llama3.1:8b-instruct-q4_1",
+		"model":  cfg.AI.OllamaModel,
 		"prompt": fmt.Sprintf("You are a helpful AI assistant. The user said: \"%s\"\n\nProvide a brief, conversational response (1-2 sentences max).", text),
 		"stream": false,
 	}
@@ -513,7 +515,7 @@ func processWithOllama(text string) (string, error) {
 		return "", fmt.Errorf("failed to marshal Ollama request: %w", err)
 	}
 
-	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	resp, err := http.Post(cfg.AI.OllamaURL + "/api/generate", "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to call Ollama: %w", err)
 	}
@@ -547,7 +549,8 @@ func synthesizeSpeech(text string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal TTS request: %w", err)
 	}
 
-	resp, err := http.Post("http://localhost:8835/synthesize", "application/json", bytes.NewReader(jsonData))
+	piperURL := cfg.AI.PiperURL + "/synthesize"
+	resp, err := http.Post(piperURL, "application/json", bytes.NewReader(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to call TTS service: %w", err)
 	}
