@@ -43,3 +43,12 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Debug audio files
+debug_audio_*.bin
+test*.wav

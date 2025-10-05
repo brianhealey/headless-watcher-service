@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/brianhealey/sensecap-server/database"
 	"github.com/brianhealey/sensecap-server/models"
 )
 
@@ -37,6 +38,9 @@ func NotificationHandler(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	logNotificationRequest(r, deviceEUI, authToken, &req, body)
 
+	// Save event to database
+	saveNotificationToDatabase(deviceEUI, &req)
+
 	// Return success response (code must be 200)
 	response := models.NotificationResponse{
 		Code: 200,
@@ -45,6 +49,56 @@ func NotificationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+func saveNotificationToDatabase(deviceEUI string, req *models.NotificationEventRequest) {
+	// Convert inference and sensor data to JSON strings
+	var inferenceJSON, sensorJSON string
+
+	if req.Events.Data != nil {
+		if req.Events.Data.Inference != nil {
+			if jsonBytes, err := json.Marshal(req.Events.Data.Inference); err == nil {
+				inferenceJSON = string(jsonBytes)
+			}
+		}
+		if req.Events.Data.Sensor != nil {
+			if jsonBytes, err := json.Marshal(req.Events.Data.Sensor); err == nil {
+				sensorJSON = string(jsonBytes)
+			}
+		}
+	}
+
+	// Create notification event
+	event := &database.NotificationEvent{
+		RequestID:     req.RequestID,
+		DeviceEUI:     deviceEUI,
+		Timestamp:     getTimestamp(req.Events.Timestamp),
+		Text:          getString(req.Events.Text),
+		Img:           getString(req.Events.Img),
+		InferenceData: inferenceJSON,
+		SensorData:    sensorJSON,
+	}
+
+	// Save to database
+	if err := database.SaveNotificationEvent(event); err != nil {
+		log.Printf("WARNING: Failed to save notification event to database: %v", err)
+	} else {
+		log.Printf("Notification event saved to database: ID=%d", event.ID)
+	}
+}
+
+func getTimestamp(ts *int64) int64 {
+	if ts == nil {
+		return 0
+	}
+	return *ts
+}
+
+func getString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func logNotificationRequest(r *http.Request, deviceEUI, authToken string, req *models.NotificationEventRequest, rawBody []byte) {

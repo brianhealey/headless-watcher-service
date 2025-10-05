@@ -8,7 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/brianhealey/sensecap-server/database"
 )
 
 // AudioStreamHandler handles /v2/watcher/talk/audio_stream POST requests
@@ -46,18 +49,37 @@ func AudioStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Transcription: '%s'", transcription)
 
-	// Step 2: Process with Ollama
-	log.Println("Step 2: Processing with Ollama...")
-	ollamaResponse, err := processWithOllama(transcription)
-	if err != nil {
-		log.Printf("ERROR: Ollama processing failed: %v", err)
-		http.Error(w, "LLM processing failed", http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Ollama response: '%s'", ollamaResponse)
+	// Step 2: Determine mode (chat vs task)
+	log.Println("Step 2: Determining interaction mode...")
+	mode := determineMode(transcription)
+	log.Printf("Mode determined: %d", mode)
 
-	// Step 3: Synthesize speech with Piper TTS
-	log.Println("Step 3: Synthesizing speech with Piper TTS...")
+	var ollamaResponse string
+	if mode == 0 {
+		// Chat mode - conversational response
+		log.Println("Step 3: Processing chat with Ollama...")
+		response, err := processChatMode(transcription)
+		if err != nil {
+			log.Printf("ERROR: Chat processing failed: %v", err)
+			http.Error(w, "Chat processing failed", http.StatusInternalServerError)
+			return
+		}
+		ollamaResponse = response
+	} else {
+		// Task mode - extract trigger and create task
+		log.Println("Step 3: Processing task mode...")
+		response, err := processTaskMode(transcription, mode, deviceEUI)
+		if err != nil {
+			log.Printf("ERROR: Task processing failed: %v", err)
+			http.Error(w, "Task processing failed", http.StatusInternalServerError)
+			return
+		}
+		ollamaResponse = response
+	}
+	log.Printf("Response: '%s'", ollamaResponse)
+
+	// Step 4: Synthesize speech with Piper TTS
+	log.Println("Step 4: Synthesizing speech with Piper TTS...")
 	audioData, err := synthesizeSpeech(ollamaResponse)
 	if err != nil {
 		log.Printf("ERROR: Speech synthesis failed: %v", err)
@@ -81,7 +103,7 @@ func AudioStreamHandler(w http.ResponseWriter, r *http.Request) {
 	jsonResponse := map[string]interface{}{
 		"code": 200,
 		"data": map[string]interface{}{
-			"mode":        0,              // VI_MODE_CHAT
+			"mode":        mode,            // 0=chat, 1=task, 2=task_auto
 			"duration":    audioDurationMs, // Audio duration in ms
 			"stt_result":  transcription,
 			"screen_text": ollamaResponse,
@@ -217,7 +239,204 @@ func transcribeAudio(audioData []byte) (string, error) {
 	return result.Text, nil
 }
 
+// determineMode analyzes the transcription to determine the interaction mode
+// Returns: 0 = VI_MODE_CHAT, 1 = VI_MODE_TASK, 2 = VI_MODE_TASK_AUTO
+func determineMode(transcription string) int {
+	// Use Function Selection Assistant prompt to determine mode
+	prompt := fmt.Sprintf(`Your name is "watcher" and you are a function selection assistant. You analyze the user's input in relation to the definition of the "Mode List" and then select the most appropriate function from the list.
+
+Mode List:
+- Mode 0 (CHAT): General conversation, questions, casual interaction
+- Mode 1 (TASK): User wants to set up a monitoring task or automation (e.g., "notify me when...", "alert me if...", "watch for...")
+- Mode 2 (TASK_AUTO): Automatic task execution (rarely used)
+
+User input: "%s"
+
+Respond with ONLY the mode number (0, 1, or 2). No explanation.`, transcription)
+
+	requestBody := map[string]interface{}{
+		"model":  "llama3.1:8b-instruct-q4_1",
+		"prompt": prompt,
+		"stream": false,
+	}
+
+	jsonData, _ := json.Marshal(requestBody)
+	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		log.Printf("WARNING: Mode detection failed, defaulting to chat mode: %v", err)
+		return 0 // Default to chat mode
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Printf("WARNING: Failed to decode mode detection response, defaulting to chat mode: %v", err)
+		return 0
+	}
+
+	// Parse mode from response
+	modeStr := strings.TrimSpace(result.Response)
+	if strings.Contains(modeStr, "1") {
+		return 1
+	} else if strings.Contains(modeStr, "2") {
+		return 2
+	}
+	return 0 // Default to chat mode
+}
+
+// processChatMode handles conversational chat requests
+func processChatMode(transcription string) (string, error) {
+	// Use official Chat Assistant prompt
+	prompt := fmt.Sprintf(`Your name is watcher, and you're a chatbot that can have a nice chat with users based on their input. At the same time, you'll reject all answers to questions about terrorism, racism, yellow violence, political sensitivity, LGBT issues, etc.
+
+User said: "%s"
+
+Provide a brief, conversational response (1-2 sentences max).`, transcription)
+
+	requestBody := map[string]interface{}{
+		"model":  "llama3.1:8b-instruct-q4_1",
+		"prompt": prompt,
+		"stream": false,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal chat request: %w", err)
+	}
+
+	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to call Ollama for chat: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("Ollama returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode chat response: %w", err)
+	}
+
+	return result.Response, nil
+}
+
+// processTaskMode handles task automation requests
+func processTaskMode(transcription string, mode int, deviceEUI string) (string, error) {
+	// Step 1: Extract trigger condition
+	triggerPrompt := fmt.Sprintf(`You are a trigger condition extraction assistant. First you will remove the time, place, intervals, action after the trigger condition is triggered, device operations (such as turning on lights and playing sound) from your input, and then you can present simple and clear conditions based on user input. Just focus on the parts that are the object and the adverb or verb.
+
+User input: "%s"
+
+Extract and return ONLY the core trigger condition. Be concise.`, transcription)
+
+	trigger, err := callOllamaSimple(triggerPrompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract trigger: %w", err)
+	}
+	log.Printf("Extracted trigger condition: '%s'", trigger)
+
+	// Step 2: Match to COCO object classes
+	cocoClasses := []string{
+		"person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+		"traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+		"bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+		"backpack", "umbrella", "handbag", "tie", "suitcase",
+	}
+
+	matchPrompt := fmt.Sprintf(`You are the word matching assistant. You start by analyzing the "Scenario", extracting keywords, or static keywords where behaviors occur (animals are preferred, e.g. human = person) and matching them with the "Target Keyword Selection List", and finally output the matching keyword.
+
+Scenario: "%s"
+
+Target Keyword Selection List: %s
+
+Respond with ONLY the matched keyword from the list. If no match, respond with "person".`, trigger, strings.Join(cocoClasses, ", "))
+
+	targetObject, err := callOllamaSimple(matchPrompt)
+	if err != nil {
+		log.Printf("WARNING: Object matching failed: %v", err)
+		targetObject = "person" // Default
+	}
+	targetObject = strings.TrimSpace(strings.ToLower(targetObject))
+	log.Printf("Matched target object: '%s'", targetObject)
+
+	// Step 3: Generate headline
+	headlinePrompt := fmt.Sprintf(`You are a headline assistant that takes what a user enters and summarizes it into a headline of six words or less:
+
+User input: "%s"
+
+Generate a concise headline (max 6 words):`, transcription)
+
+	headline, err := callOllamaSimple(headlinePrompt)
+	if err != nil {
+		headline = "Task created" // Fallback
+	}
+	headline = strings.TrimSpace(headline)
+	log.Printf("Generated headline: '%s'", headline)
+
+	// Step 4: Store task in database
+	taskFlow := &database.TaskFlow{
+		DeviceEUI:        deviceEUI,
+		Name:             transcription, // Full original request
+		Headline:         headline,
+		TriggerCondition: trigger,
+		TargetObjects:    []string{targetObject},
+		Actions:          []string{"notify"}, // Default action
+	}
+
+	if err := database.SaveTaskFlow(taskFlow); err != nil {
+		log.Printf("WARNING: Failed to save task flow to database: %v", err)
+		// Continue anyway - return success to user
+	} else {
+		log.Printf("Task flow saved to database: ID=%d", taskFlow.ID)
+	}
+
+	// Return confirmation message
+	return fmt.Sprintf("I've created a monitoring task: %s. I'll watch for %s.", headline, trigger), nil
+}
+
+// callOllamaSimple is a helper to call Ollama with a simple prompt
+func callOllamaSimple(prompt string) (string, error) {
+	requestBody := map[string]interface{}{
+		"model":  "llama3.1:8b-instruct-q4_1",
+		"prompt": prompt,
+		"stream": false,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to call Ollama: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("Ollama returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return result.Response, nil
+}
+
 // processWithOllama sends text to Ollama for LLM processing
+// DEPRECATED: Use processChatMode or processTaskMode instead
 func processWithOllama(text string) (string, error) {
 	requestBody := map[string]interface{}{
 		"model":  "llama3.1:8b-instruct-q4_1",

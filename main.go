@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/brianhealey/sensecap-server/database"
 	"github.com/brianhealey/sensecap-server/handlers"
 	"github.com/brianhealey/sensecap-server/middleware"
 	"github.com/gorilla/mux"
@@ -21,6 +22,7 @@ func main() {
 	// Parse command-line flags
 	port := flag.String("port", defaultPort, "Server port")
 	token := flag.String("token", defaultToken, "Required authentication token (optional)")
+	dbPath := flag.String("db", "sensecap.db", "Path to SQLite database file")
 	flag.Parse()
 
 	// Override with environment variables if set
@@ -30,6 +32,15 @@ func main() {
 	if envToken := os.Getenv("AUTH_TOKEN"); envToken != "" {
 		*token = envToken
 	}
+	if envDB := os.Getenv("DB_PATH"); envDB != "" {
+		*dbPath = envDB
+	}
+
+	// Initialize database
+	if err := database.Initialize(*dbPath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.Close()
 
 	// Create router
 	r := mux.NewRouter()
@@ -64,6 +75,7 @@ func main() {
 
 	// Register V2 endpoints
 	v2.HandleFunc("/watcher/talk/audio_stream", handlers.AudioStreamHandler).Methods("POST")
+	v2.HandleFunc("/watcher/talk/view_task_detail", handlers.TaskDetailHandler).Methods("POST")
 
 	// Health check endpoint (no auth required)
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +120,7 @@ func printBanner(port, token string) {
 	fmt.Printf("    POST http://localhost:%s/v1/watcher/vision\n", port)
 	fmt.Println("  V2 API:")
 	fmt.Printf("    POST http://localhost:%s/v2/watcher/talk/audio_stream\n", port)
+	fmt.Printf("    POST http://localhost:%s/v2/watcher/talk/view_task_detail\n", port)
 	fmt.Println("  Health:")
 	fmt.Printf("    GET  http://localhost:%s/health\n", port)
 	fmt.Println()
