@@ -48,14 +48,17 @@ Device Audio (PCM/WAV)
 
 ## Installation
 
-All dependencies are already installed:
-- ✅ Ollama (via Homebrew)
-- ✅ Whisper (in Python venv)
-- ✅ Piper TTS (in Python venv)
-- ✅ Flask (in Python venv)
+Dependencies required:
+- Ollama (LLM service)
+- Python 3.11+ with venv
+- Go 1.21+
 
-Voice model downloaded:
-- ✅ `internal/models/piper/en_US-lessac-medium.onnx`
+The Piper TTS voice model is automatically downloaded when you run:
+```bash
+make install
+```
+
+This downloads `internal/models/piper/en_US-lessac-medium.onnx` (~60MB)
 
 ## Usage
 

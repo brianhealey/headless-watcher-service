@@ -68,13 +68,11 @@ curl http://localhost:8835/health
 
 **1. Install Dependencies:**
 
-Go:
 ```bash
-go mod download
-```
+# Install Go dependencies and download AI models
+make install
 
-Python:
-```bash
+# Set up Python environment
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r python/requirements.txt
@@ -94,15 +92,7 @@ brew install ollama
 brew services start ollama
 ```
 
-**3. Download Piper TTS Model:**
-```bash
-mkdir -p models/piper
-cd models/piper
-wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
-```
-
-**4. Start Services:**
+**3. Start Services:**
 
 Using the startup script:
 ```bash

@@ -52,3 +52,14 @@ temp/
 # Debug audio files
 debug_audio_*.bin
 test*.wav
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# AI Models (downloaded during setup)
+internal/models/piper/*.onnx
+internal/models/piper/*.onnx.json

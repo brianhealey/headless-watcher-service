@@ -1,9 +1,11 @@
-.PHONY: run build test clean install help
+.PHONY: run build test clean install help download-models
 
 # Variables
 BINARY_NAME=sensecap-server
 PORT?=8834
 TOKEN?=
+PIPER_MODEL_DIR=internal/models/piper
+PIPER_MODEL_URL=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -11,7 +13,24 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install dependencies
+download-models: ## Download Piper TTS model
+	@echo "Downloading Piper TTS model..."
+	@mkdir -p $(PIPER_MODEL_DIR)
+	@if [ ! -f "$(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx" ]; then \
+		echo "Downloading en_US-lessac-medium.onnx..."; \
+		curl -L -o $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx $(PIPER_MODEL_URL)/en_US-lessac-medium.onnx; \
+	else \
+		echo "Model already exists: $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx"; \
+	fi
+	@if [ ! -f "$(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json" ]; then \
+		echo "Downloading en_US-lessac-medium.onnx.json..."; \
+		curl -L -o $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json $(PIPER_MODEL_URL)/en_US-lessac-medium.onnx.json; \
+	else \
+		echo "Model config already exists: $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json"; \
+	fi
+	@echo "Model download complete"
+
+install: download-models ## Install dependencies and download models
 	@echo "Installing dependencies..."
 	go mod download
 	go mod tidy

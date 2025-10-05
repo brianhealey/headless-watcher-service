@@ -2,6 +2,32 @@
 
 ## Installation & Running
 
+### 0. Setup (First Time Only)
+
+**Docker Setup:**
+```bash
+# Copy environment file
+cp .env.example .env
+# Edit .env to set your AUTH_TOKEN
+```
+
+**Local Development Setup:**
+```bash
+# Install dependencies and download AI models
+make install
+
+# Set up Python environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r python/requirements.txt
+
+# Install Ollama and pull models
+brew install ollama
+brew services start ollama
+ollama pull llama3.1:8b-instruct-q4_1
+ollama pull llava:7b
+```
+
 ### 1. Start the Server
 
 ```bash
