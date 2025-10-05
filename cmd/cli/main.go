@@ -66,34 +66,58 @@ func (m *Menu) Run() error {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "2":
-			if err := m.viewDeviceInfo(); err != nil {
+			if err := m.bindDevice(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "3":
-			if err := m.configureWiFi(); err != nil {
+			if err := m.viewDeviceInfo(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "4":
-			if err := m.scanWiFiNetworks(); err != nil {
+			if err := m.configureWiFi(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "5":
-			if err := m.configureLocalServices(); err != nil {
+			if err := m.viewWiFiStatus(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "6":
-			if err := m.configureDeviceSettings(); err != nil {
+			if err := m.scanWiFiNetworks(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "7":
-			if err := m.configureCloudService(); err != nil {
+			if err := m.configureLocalServices(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "8":
-			if err := m.viewTaskFlowStatus(); err != nil {
+			if err := m.configureCloudService(); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "9":
+			if err := m.viewCloudServiceStatus(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "10":
+			if err := m.configureDeviceSettings(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "11":
+			if err := m.viewTaskFlowStatus(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "12":
+			if err := m.viewTaskFlowInfo(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "13":
+			if err := m.setTaskFlow(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "14":
+			if err := m.downloadEmoji(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		case "15":
 			m.ble.Disconnect()
 			fmt.Println("Goodbye!")
 			return nil
@@ -115,15 +139,29 @@ func (m *Menu) printMainMenu() {
 		fmt.Println("Status: Not Connected")
 	}
 	fmt.Println("----------------------------------------")
-	fmt.Println("1. Scan and Connect to Device")
-	fmt.Println("2. View Device Information")
-	fmt.Println("3. Configure WiFi")
-	fmt.Println("4. Scan WiFi Networks")
-	fmt.Println("5. Configure Local Services")
-	fmt.Println("6. Configure Device Settings")
-	fmt.Println("7. Configure Cloud Service")
-	fmt.Println("8. View Task Flow Status")
-	fmt.Println("9. Exit")
+	fmt.Println("Connection:")
+	fmt.Println("  1. Scan and Connect to Device")
+	fmt.Println("  2. Bind Device")
+	fmt.Println("\nDevice Info:")
+	fmt.Println("  3. View Device Information")
+	fmt.Println("\nWiFi:")
+	fmt.Println("  4. Configure WiFi")
+	fmt.Println("  5. View WiFi Status")
+	fmt.Println("  6. Scan WiFi Networks")
+	fmt.Println("\nServices:")
+	fmt.Println("  7. Configure Local Services")
+	fmt.Println("  8. Configure Cloud Service")
+	fmt.Println("  9. View Cloud Service Status")
+	fmt.Println("\nDevice Settings:")
+	fmt.Println(" 10. Configure Device Settings")
+	fmt.Println("\nTask Flow:")
+	fmt.Println(" 11. View Task Flow Status")
+	fmt.Println(" 12. View Task Flow Info")
+	fmt.Println(" 13. Set Task Flow (JSON)")
+	fmt.Println("\nCustomization:")
+	fmt.Println(" 14. Download Emoji/Images")
+	fmt.Println("\nExit:")
+	fmt.Println(" 15. Disconnect and Exit")
 	fmt.Println("----------------------------------------")
 }
 
@@ -542,6 +580,221 @@ func (m *Menu) viewTaskFlowStatus() error {
 	fmt.Printf("Module: %v\n", data["module"])
 	fmt.Printf("Module Error Code: %d\n", moduleErrCode)
 	fmt.Printf("Progress: %d%%\n", percent)
+
+	return nil
+}
+
+func (m *Menu) bindDevice() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("\n=== Bind Device ===")
+	code := m.readInputInt("Enter binding code: ")
+
+	cmd, err := watcher.BuildBindCommand(code)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Binding device...")
+	resp, err := m.ble.SendCommand(cmd)
+	if err != nil {
+		return err
+	}
+
+	if resp.Code == 0 {
+		fmt.Println("✓ Device bound successfully")
+	} else {
+		fmt.Printf("Binding failed with code: %d\n", resp.Code)
+	}
+
+	return nil
+}
+
+func (m *Menu) viewWiFiStatus() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("Querying WiFi status...")
+	resp, err := m.ble.SendCommand(watcher.BuildWiFiQuery())
+	if err != nil {
+		return err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return err
+	}
+
+	fmt.Println("\n=== WiFi Status ===")
+	if resp.Code == 1 {
+		fmt.Println("Status: Connected ✓")
+	} else {
+		fmt.Println("Status: Disconnected")
+	}
+	fmt.Printf("SSID: %v\n", data["ssid"])
+	fmt.Printf("RSSI: %v dBm\n", data["rssi"])
+	fmt.Printf("Security: %v\n", data["encryption"])
+
+	return nil
+}
+
+func (m *Menu) viewCloudServiceStatus() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("Querying cloud service status...")
+	resp, err := m.ble.SendCommand(watcher.BuildCloudServiceQuery())
+	if err != nil {
+		return err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return err
+	}
+
+	remoteControl := 0
+	if v, ok := data["remotecontrol"].(float64); ok {
+		remoteControl = int(v)
+	}
+
+	fmt.Println("\n=== Cloud Service Status ===")
+	if remoteControl == 1 {
+		fmt.Println("Status: Enabled ✓")
+	} else {
+		fmt.Println("Status: Disabled")
+	}
+
+	return nil
+}
+
+func (m *Menu) viewTaskFlowInfo() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("Querying task flow info...")
+	resp, err := m.ble.SendCommand(watcher.BuildTaskFlowInfoQuery())
+	if err != nil {
+		return err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return err
+	}
+
+	fmt.Println("\n=== Task Flow Information ===")
+
+	// Pretty print the entire task flow JSON
+	taskflowJSON, err := json.MarshalIndent(data["taskflow"], "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(taskflowJSON))
+
+	return nil
+}
+
+func (m *Menu) setTaskFlow() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("\n=== Set Task Flow ===")
+	fmt.Println("Enter task flow JSON (end with empty line):")
+
+	var jsonLines []string
+	for {
+		line := m.readInput("")
+		if line == "" {
+			break
+		}
+		jsonLines = append(jsonLines, line)
+	}
+
+	jsonStr := strings.Join(jsonLines, "\n")
+
+	var taskflow map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &taskflow); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	cmd, err := watcher.BuildTaskFlowSetCommand(taskflow)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Setting task flow...")
+	resp, err := m.ble.SendCommand(cmd)
+	if err != nil {
+		return err
+	}
+
+	if resp.Code == 0 {
+		fmt.Println("✓ Task flow set successfully")
+	} else {
+		fmt.Printf("Task flow failed with code: %d\n", resp.Code)
+	}
+
+	return nil
+}
+
+func (m *Menu) downloadEmoji() error {
+	if !m.ble.IsConnected() {
+		return fmt.Errorf("not connected to device")
+	}
+
+	fmt.Println("\n=== Download Emoji/Images ===")
+	filename := m.readInput("Enter filename: ")
+
+	var urls []string
+	fmt.Println("Enter image URLs (one per line, empty line to finish):")
+	for {
+		url := m.readInput("")
+		if url == "" {
+			break
+		}
+		urls = append(urls, url)
+	}
+
+	if len(urls) == 0 {
+		return fmt.Errorf("no URLs provided")
+	}
+
+	cmd, err := watcher.BuildEmojiDownloadCommand(filename, urls)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Downloading %d image(s)...\n", len(urls))
+	resp, err := m.ble.SendCommand(cmd)
+	if err != nil {
+		return err
+	}
+
+	var results []interface{}
+	if err := json.Unmarshal(resp.Data, &results); err != nil {
+		return err
+	}
+
+	fmt.Println("\n=== Download Results ===")
+	for i, result := range results {
+		code := 0
+		if v, ok := result.(float64); ok {
+			code = int(v)
+		}
+		if code == 0 {
+			fmt.Printf("Image %d: ✓ Success\n", i+1)
+		} else {
+			fmt.Printf("Image %d: ✗ Error (code: %d)\n", i+1, code)
+		}
+	}
 
 	return nil
 }

@@ -109,3 +109,46 @@ func BuildTaskFlowQuery() string {
 func BuildTaskFlowInfoQuery() string {
 	return "AT+taskflowinfo?"
 }
+
+// BuildTaskFlowSetCommand builds AT+taskflow= command
+func BuildTaskFlowSetCommand(taskflow map[string]interface{}) (string, error) {
+	payload := map[string]interface{}{
+		"data": taskflow,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("AT+taskflow=%s", string(jsonData)), nil
+}
+
+// BuildEmojiDownloadCommand builds AT+emoji= command
+func BuildEmojiDownloadCommand(filename string, urls []string) (string, error) {
+	payload := map[string]interface{}{
+		"filename": filename,
+		"urls":     urls,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("AT+emoji=%s", string(jsonData)), nil
+}
+
+// BuildBindCommand builds AT+bind= command
+func BuildBindCommand(code int) (string, error) {
+	payload := map[string]interface{}{
+		"code": code,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("AT+bind=%s", string(jsonData)), nil
+}
