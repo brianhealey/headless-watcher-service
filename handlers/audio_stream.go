@@ -371,7 +371,41 @@ Otherwise pick the most relevant keyword from the list.`, trigger, strings.Join(
 	targetObject = strings.TrimSpace(strings.ToLower(targetObject))
 	log.Printf("Matched target object: '%s'", targetObject)
 
-	// Step 3: Generate headline
+	// Step 3: Determine which local model to use
+	modelSelectionPrompt := fmt.Sprintf(`Target object: "%s"
+
+The device has 3 built-in TinyML models:
+- Model 1: Person detection (person, human, people, man, woman)
+- Model 2: Pet detection (dog, cat, puppy, kitten, pet)
+- Model 3: Gesture detection (rock, paper, scissors, hand gesture)
+
+CRITICAL: Which model should be used? Respond with ONLY ONE NUMBER: 1, 2, 3, or 0
+- 1 if person/human related
+- 2 if dog/cat/pet related
+- 3 if rock/paper/scissors gesture
+- 0 if none match (will require cloud model download)
+
+Respond with ONLY the number. No explanation.`, targetObject)
+
+	modelTypeStr, err := callOllamaSimple(modelSelectionPrompt)
+	if err != nil {
+		log.Printf("WARNING: Model selection failed, defaulting to person model: %v", err)
+		modelTypeStr = "1" // Default to person model
+	}
+	modelTypeStr = cleanLLMResponse(modelTypeStr)
+
+	// Parse model type
+	modelType := 1 // Default to person model
+	if strings.Contains(modelTypeStr, "2") {
+		modelType = 2 // Pet model
+	} else if strings.Contains(modelTypeStr, "3") {
+		modelType = 3 // Gesture model
+	} else if strings.Contains(modelTypeStr, "0") {
+		modelType = 0 // Cloud model
+	}
+	log.Printf("Selected model type: %d", modelType)
+
+	// Step 4: Generate headline
 	headlinePrompt := fmt.Sprintf(`Create a short headline summarizing this task.
 
 User input: "%s"
@@ -407,6 +441,7 @@ Example: "Watch for delivery person" or "Monitor front door activity"`, transcri
 		TriggerCondition: trigger,
 		TargetObjects:    []string{targetObject},
 		Actions:          []string{"notify"}, // Default action
+		ModelType:        modelType,          // LLM-selected model type
 	}
 
 	if err := database.SaveTaskFlow(taskFlow); err != nil {

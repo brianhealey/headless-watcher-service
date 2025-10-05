@@ -21,6 +21,7 @@ type TaskFlow struct {
 	TriggerCondition string    `json:"trigger_condition"`
 	TargetObjects    []string  `json:"target_objects"`
 	Actions          []string  `json:"actions"`
+	ModelType        int       `json:"model_type"` // 0=cloud, 1=person, 2=pet, 3=gesture
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -71,6 +72,7 @@ func createTables() error {
 		trigger_condition TEXT NOT NULL,
 		target_objects TEXT NOT NULL,
 		actions TEXT NOT NULL,
+		model_type INTEGER DEFAULT 1,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
@@ -93,7 +95,18 @@ func createTables() error {
 	`
 
 	_, err := db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Migration: Add model_type column to existing task_flows table if it doesn't exist
+	migrationSQL := `
+	ALTER TABLE task_flows ADD COLUMN model_type INTEGER DEFAULT 1;
+	`
+	// This will fail if column already exists, which is fine - ignore the error
+	db.Exec(migrationSQL)
+
+	return nil
 }
 
 // Close closes the database connection
@@ -118,8 +131,8 @@ func SaveTaskFlow(taskFlow *TaskFlow) error {
 	}
 
 	query := `
-	INSERT INTO task_flows (device_eui, name, headline, trigger_condition, target_objects, actions, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	INSERT INTO task_flows (device_eui, name, headline, trigger_condition, target_objects, actions, model_type, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
@@ -130,6 +143,7 @@ func SaveTaskFlow(taskFlow *TaskFlow) error {
 		taskFlow.TriggerCondition,
 		string(targetObjectsJSON),
 		string(actionsJSON),
+		taskFlow.ModelType,
 		now,
 		now,
 	)
@@ -154,7 +168,7 @@ func SaveTaskFlow(taskFlow *TaskFlow) error {
 // GetTaskFlowsByDevice retrieves all task flows for a device
 func GetTaskFlowsByDevice(deviceEUI string) ([]*TaskFlow, error) {
 	query := `
-	SELECT id, device_eui, name, headline, trigger_condition, target_objects, actions, created_at, updated_at
+	SELECT id, device_eui, name, headline, trigger_condition, target_objects, actions, model_type, created_at, updated_at
 	FROM task_flows
 	WHERE device_eui = ?
 	ORDER BY created_at DESC
@@ -179,6 +193,7 @@ func GetTaskFlowsByDevice(deviceEUI string) ([]*TaskFlow, error) {
 			&tf.TriggerCondition,
 			&targetObjectsJSON,
 			&actionsJSON,
+			&tf.ModelType,
 			&tf.CreatedAt,
 			&tf.UpdatedAt,
 		)
@@ -206,7 +221,7 @@ func GetTaskFlowsByDevice(deviceEUI string) ([]*TaskFlow, error) {
 // GetTaskFlowByID retrieves a task flow by ID
 func GetTaskFlowByID(id int) (*TaskFlow, error) {
 	query := `
-	SELECT id, device_eui, name, headline, trigger_condition, target_objects, actions, created_at, updated_at
+	SELECT id, device_eui, name, headline, trigger_condition, target_objects, actions, model_type, created_at, updated_at
 	FROM task_flows
 	WHERE id = ?
 	`
@@ -222,6 +237,7 @@ func GetTaskFlowByID(id int) (*TaskFlow, error) {
 		&tf.TriggerCondition,
 		&targetObjectsJSON,
 		&actionsJSON,
+		&tf.ModelType,
 		&tf.CreatedAt,
 		&tf.UpdatedAt,
 	)
