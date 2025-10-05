@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/brianhealey/sensecap-server/database"
+	"github.com/brianhealey/sensecap-server/internal/database"
 )
 
 // TaskDetailHandler handles /v2/watcher/talk/view_task_detail POST requests

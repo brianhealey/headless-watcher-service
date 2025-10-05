@@ -11,7 +11,7 @@ Device Audio (PCM/WAV)
         ↓
    Go Server (port 8834)
         ↓
-    Whisper STT (Python, port 5000)
+    Whisper STT (Python, port 8835)
         ↓
     Transcribed Text
         ↓
@@ -19,7 +19,7 @@ Device Audio (PCM/WAV)
         ↓
     AI Response Text
         ↓
-    Piper TTS (Python, port 5000)
+    Piper TTS (Python, port 8835)
         ↓
     Synthesized Audio (WAV)
         ↓
@@ -30,16 +30,16 @@ Device Audio (PCM/WAV)
 
 ## Components
 
-### 1. Go Server (`main.go` + `handlers/audio_stream.go`)
+### 1. Go Server (`cmd/server/main.go` + `internal/handlers/audio_stream.go`)
 - Receives audio from device at `/v2/watcher/talk/audio_stream`
 - Orchestrates the pipeline
 - Returns multipart response (JSON metadata + boundary + audio)
 - Port: 8834
 
-### 2. Python Audio Service (`audio_service.py`)
+### 2. Python Audio Service (`python/audio_service.py`)
 - **Whisper STT**: `/transcribe` - Converts audio to text
 - **Piper TTS**: `/synthesize` - Converts text to speech
-- Port: 5000
+- Port: 8835
 
 ### 3. Ollama LLM
 - Model: `llama3.1:8b-instruct-q4_1`
@@ -55,25 +55,36 @@ All dependencies are already installed:
 - ✅ Flask (in Python venv)
 
 Voice model downloaded:
-- ✅ `models/piper/en_US-lessac-medium.onnx`
+- ✅ `internal/models/piper/en_US-lessac-medium.onnx`
 
 ## Usage
 
-### Option 1: Start All Services Together
+### Option 1: Docker (Recommended)
 ```bash
-./start-all.sh
+docker-compose up -d
+```
+
+This will start:
+1. Ollama service (port 11434)
+2. Audio Processing Service (port 8835)
+3. SenseCAP Server (port 8834)
+
+### Option 2: Start All Services Together (Local)
+```bash
+scripts/start-all.sh
 ```
 
 This will:
 1. Start Ollama (if not running)
-2. Start Audio Processing Service (port 5000)
+2. Start Audio Processing Service (port 8835)
 3. Start SenseCAP Server (port 8834)
 
-### Option 2: Start Services Manually
+### Option 3: Start Services Manually
 
 **Terminal 1: Audio Service**
 ```bash
-./start-audio-service.sh
+source venv/bin/activate
+python3 python/audio_service.py
 ```
 
 **Terminal 2: Go Server**
@@ -86,12 +97,12 @@ make run
 ### Test Audio Service
 ```bash
 # Transcribe audio
-curl -X POST http://localhost:5000/transcribe \
+curl -X POST http://localhost:8835/transcribe \
   --data-binary @test-audio.wav \
   -H "Content-Type: application/octet-stream"
 
 # Synthesize speech
-curl -X POST http://localhost:5000/synthesize \
+curl -X POST http://localhost:8835/synthesize \
   -H "Content-Type: application/json" \
   -d '{"text":"Hello, this is a test"}' \
   --output test-output.wav
@@ -129,24 +140,42 @@ curl -X POST http://localhost:5000/synthesize \
 
 ## Configuration
 
+All services are now configurable via environment variables or command-line flags.
+
 ### Change Ollama Model
-Edit `handlers/audio_stream.go`:
-```go
-"model":  "llama3.1:8b-instruct-q4_1",  // Change this
+```bash
+# Environment variable
+export OLLAMA_MODEL=llama3.2:8b
+
+# Or in .env file for Docker
+OLLAMA_MODEL=llama3.2:8b
+
+# Or command-line flag
+go run ./cmd/server -ollama-model llama3.2:8b
+```
+
+### Change Service URLs
+```bash
+# Override AI service URLs
+export WHISPER_URL=http://custom-whisper:8835
+export PIPER_URL=http://custom-piper:8835
+export OLLAMA_URL=http://custom-ollama:11434
+
+# Or use flags
+go run ./cmd/server \
+  -whisper-url http://custom-whisper:8835 \
+  -piper-url http://custom-piper:8835 \
+  -ollama-url http://custom-ollama:11434
 ```
 
 ### Change Voice Model
 1. Download different Piper voice from https://huggingface.co/rhasspy/piper-voices
-2. Update `audio_service.py`:
+2. Update `python/audio_service.py`:
    ```python
-   piper_model_path = "models/piper/YOUR-MODEL.onnx"
+   piper_model_path = "internal/models/piper/YOUR-MODEL.onnx"
    ```
 
-### Adjust AI Prompt
-Edit `handlers/audio_stream.go` in `processWithOllama()`:
-```go
-"prompt": fmt.Sprintf("Your custom prompt: \"%s\"", text),
-```
+See [README.md](./README.md#configuration) for complete configuration options.
 
 ## Performance Notes
 

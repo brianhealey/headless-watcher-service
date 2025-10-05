@@ -18,15 +18,15 @@ install: ## Install dependencies
 
 build: ## Build the application
 	@echo "Building $(BINARY_NAME)..."
-	go build -o $(BINARY_NAME) main.go
+	go build -o $(BINARY_NAME) ./cmd/server
 	@echo "Build complete: ./$(BINARY_NAME)"
 
 run: ## Run the application (use PORT=8080 TOKEN=xxx to override)
 	@echo "Starting server on port $(PORT)..."
 	@if [ -n "$(TOKEN)" ]; then \
-		go run main.go -port $(PORT) -token $(TOKEN); \
+		go run ./cmd/server -port $(PORT) -token $(TOKEN); \
 	else \
-		go run main.go -port $(PORT); \
+		go run ./cmd/server -port $(PORT); \
 	fi
 
 run-auth: ## Run with authentication (requires TOKEN=xxx)
@@ -35,7 +35,7 @@ run-auth: ## Run with authentication (requires TOKEN=xxx)
 		exit 1; \
 	fi
 	@echo "Starting server with authentication on port $(PORT)..."
-	go run main.go -port $(PORT) -token $(TOKEN)
+	go run ./cmd/server -port $(PORT) -token $(TOKEN)
 
 test: ## Run tests
 	@echo "Running tests..."
@@ -68,7 +68,7 @@ docker-run: ## Run Docker container
 # Development shortcuts
 dev: ## Run in development mode (no auth)
 	@echo "Starting in development mode (no authentication)..."
-	go run main.go -port $(PORT)
+	go run ./cmd/server -port $(PORT)
 
 prod: ## Run in production mode (requires TOKEN)
 	@if [ -z "$(TOKEN)" ]; then \
@@ -76,4 +76,4 @@ prod: ## Run in production mode (requires TOKEN)
 		exit 1; \
 	fi
 	@echo "Starting in production mode..."
-	go run main.go -port $(PORT) -token $(TOKEN)
+	go run ./cmd/server -port $(PORT) -token $(TOKEN)

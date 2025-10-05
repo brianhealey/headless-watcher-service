@@ -1,6 +1,6 @@
 package handlers
 
-import "github.com/brianhealey/sensecap-server/config"
+import "github.com/brianhealey/sensecap-server/internal/config"
 
 // Global configuration (will be set by main.go)
 var cfg *config.Config

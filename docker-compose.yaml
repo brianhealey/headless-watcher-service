@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sensecap-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - sensecap-network
+
+  # Python Audio Service (Whisper STT + Piper TTS)
+  audio-service:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: sensecap-audio
+    ports:
+      - "8835:8835"
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8835/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    networks:
+      - sensecap-network
+
+  # Go SenseCAP Server
+  sensecap-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensecap-server
+    ports:
+      - "${SERVER_PORT:-8834}:8834"
+    environment:
+      # Server configuration
+      - SERVER_PORT=8834
+      - DB_PATH=/app/data/sensecap.db
+
+      # Authentication
+      - AUTH_TOKEN=${AUTH_TOKEN:-your-secret-token}
+
+      # AI Service URLs (internal Docker network)
+      - WHISPER_URL=http://audio-service:8835
+      - PIPER_URL=http://audio-service:8835
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b-instruct-q4_1}
+      - LLAVA_MODEL=${LLAVA_MODEL:-llava:7b}
+
+      # API configuration
+      - API_HOST=${API_HOST:-localhost}
+      - API_SCHEMA=${API_SCHEMA:-http}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - ollama
+      - audio-service
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8834/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - sensecap-network
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  sensecap-network:
+    driver: bridge

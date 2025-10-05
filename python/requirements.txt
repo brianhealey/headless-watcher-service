@@ -1,0 +1,15 @@
+# Audio Processing Service Dependencies
+# Whisper STT (Speech-to-Text)
+openai-whisper==20231117
+
+# Piper TTS (Text-to-Speech)
+piper-tts==1.2.0
+
+# Web framework
+flask==3.0.0
+
+# Audio processing
+numpy==1.24.3
+
+# Optional: GPU acceleration for Whisper (uncomment if using CUDA)
+# torch==2.1.0+cu118

@@ -5,10 +5,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/brianhealey/sensecap-server/config"
-	"github.com/brianhealey/sensecap-server/database"
-	"github.com/brianhealey/sensecap-server/handlers"
-	"github.com/brianhealey/sensecap-server/middleware"
+	"github.com/brianhealey/sensecap-server/internal/config"
+	"github.com/brianhealey/sensecap-server/internal/database"
+	"github.com/brianhealey/sensecap-server/internal/handlers"
+	"github.com/brianhealey/sensecap-server/internal/middleware"
 	"github.com/gorilla/mux"
 )
 

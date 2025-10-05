@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brianhealey/sensecap-server/database"
+	"github.com/brianhealey/sensecap-server/internal/database"
 )
 
 // AudioStreamHandler handles /v2/watcher/talk/audio_stream POST requests

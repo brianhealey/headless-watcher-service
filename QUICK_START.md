@@ -5,11 +5,14 @@
 ### 1. Start the Server
 
 ```bash
-# Run with default settings (port 8834, no auth)
-go run main.go
+# Using Docker (recommended)
+docker-compose up -d
 
-# Or use the Makefile
+# Or run locally with Makefile
 make run
+
+# Or run directly
+go run ./cmd/server
 ```
 
 ### 2. Configure Your Device
@@ -110,10 +113,13 @@ curl -X POST http://localhost:8834/v1/watcher/vision \
 
 ```bash
 # Run with token
-go run main.go -token my-secret-token
+go run ./cmd/server -token my-secret-token
 
 # Or with environment variable
-AUTH_TOKEN=my-secret-token go run main.go
+AUTH_TOKEN=my-secret-token go run ./cmd/server
+
+# Or use Makefile
+make run TOKEN=my-secret-token
 ```
 
 Then configure your device:

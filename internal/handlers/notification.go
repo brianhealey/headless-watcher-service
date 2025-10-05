@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/brianhealey/sensecap-server/database"
-	"github.com/brianhealey/sensecap-server/models"
+	"github.com/brianhealey/sensecap-server/internal/database"
+	"github.com/brianhealey/sensecap-server/internal/models"
 )
 
 // NotificationHandler handles /v1/notification/event POST requests

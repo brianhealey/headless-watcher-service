@@ -1,7 +1,8 @@
 #!/bin/bash
 # Start all services for SenseCAP voice interaction pipeline
 
-cd "$(dirname "$0")"
+# Go to project root
+cd "$(dirname "$0")/.."
 
 echo "========================================"
 echo "SenseCAP Voice Interaction Pipeline"
@@ -16,9 +17,15 @@ if ! pgrep -x "ollama" > /dev/null; then
 fi
 
 # Start audio service in background
-echo "Starting Audio Processing Service (port 5000)..."
-./start-audio-service.sh &
-AUDIO_PID=$!
+echo "Starting Audio Processing Service (port 8835)..."
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+    python3 python/audio_service.py &
+    AUDIO_PID=$!
+else
+    echo "ERROR: Python virtual environment not found. Run: python3 -m venv venv && source venv/bin/activate && pip install -r python/requirements.txt"
+    exit 1
+fi
 
 # Wait for audio service to be ready
 sleep 5
@@ -33,7 +40,7 @@ echo "  3. Ollama response → Piper (TTS)"
 echo "  4. Synthesized audio → Device"
 echo ""
 echo "Services:"
-echo "  - Audio Service:  http://localhost:5000"
+echo "  - Audio Service:  http://localhost:8835"
 echo "  - Ollama API:     http://localhost:11434"
 echo "  - SenseCAP Server: http://localhost:8834"
 echo ""

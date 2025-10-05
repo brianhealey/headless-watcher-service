@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brianhealey/sensecap-server/models"
+	"github.com/brianhealey/sensecap-server/internal/models"
 )
 
 // VisionHandler handles /v1/watcher/vision POST requests
