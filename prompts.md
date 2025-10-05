@@ -288,10 +288,10 @@ These are used in contexts where the prompt is dynamically constructed based on:
 
 | Endpoint | Method | Purpose | Prompts Used | Status |
 |----------|--------|---------|--------------|--------|
-| `/v2/watcher/talk/audio_stream` | POST | Voice interaction (chat/task) | Chat Assistant, Function Selection, Trigger Extraction | ✅ Implemented |
-| `/v1/watcher/vision` | POST | Image analysis with LLM | Image Analysis | ✅ Implemented (LLaVA 7B) |
-| `/v2/watcher/talk/view_task_detail` | POST | View task flow details | None | ⚠️ Not implemented |
-| `/v1/notification/event` | POST | Alarm/event notifications | None | ⚠️ Partial (logs only) |
+| `/v2/watcher/talk/audio_stream` | POST | Voice interaction (chat/task) | Chat Assistant, Function Selection, Trigger Extraction, Word Matching, Headline | ✅ Implemented |
+| `/v1/watcher/vision` | POST | Image analysis with LLM | Image Analysis | ✅ Implemented (LLaVA 7B + Event Detection) |
+| `/v2/watcher/talk/view_task_detail` | POST | View task flow details | None | ✅ Implemented |
+| `/v1/notification/event` | POST | Alarm/event notifications | None | ✅ Implemented (Database Storage) |
 
 ### Cloud-Only APIs (SenseCraft AI Service)
 
@@ -307,13 +307,19 @@ These are used by the cloud service internally for prompt processing and are not
 
 When implementing a local server replacement for the cloud service:
 
-### ✅ Currently Implemented
+### ✅ Currently Implemented (Complete!)
 
-1. **Chat Mode** (`/v2/watcher/talk/audio_stream`)
+1. **Voice Interaction** (`/v2/watcher/talk/audio_stream`)
    - STT: Whisper (base model)
    - LLM: Ollama (llama3.1:8b-instruct-q4_1)
+   - Mode Detection: Function Selection Assistant determines chat vs task mode
    - TTS: Piper (en_US-lessac-medium)
-   - Using simple chat prompt (can upgrade to official Chat Assistant prompt)
+   - **Chat Mode**: Official Chat Assistant prompt with content filtering
+   - **Task Mode**: Complete task extraction pipeline
+     * Trigger Condition Extraction: Parses monitoring conditions
+     * Word Matching: Maps to COCO object classes
+     * Headline Generation: Creates 6-word task summaries
+     * Database Storage: Saves task flows to SQLite
    - Returns multipart response: JSON + boundary + WAV audio
    - Correctly handles 0xFF padding in incoming PCM audio
    - Sets Content-Length header for complete audio download
@@ -322,32 +328,24 @@ When implementing a local server replacement for the cloud service:
    - Vision LLM: Ollama LLaVA 7B
    - Accepts base64-encoded JPEG images
    - Supports custom prompts or defaults to "what's in the picture?"
+   - **Event Detection**: Analyzes LLaVA response for positive/negative indicators
+   - Returns `state: 1` when monitoring condition is met (triggers device alarm)
    - Optional TTS audio response via Piper
    - Returns JSON with analysis results
    - Supports both RECOGNIZE (type=0) and MONITORING (type=1) modes
 
-### ⚠️ To Be Implemented
+3. **Task Detail View** (`/v2/watcher/talk/view_task_detail`)
+   - Retrieves all saved task flows for a device
+   - Returns task metadata: headline, trigger, target objects, timestamps
+   - SQLite database storage
 
-2. **Task Mode** (same endpoint, mode=1/2)
-   - Implement Function Selection Assistant to detect task requests
-   - Use Trigger Condition Extraction prompt
-   - Use Word Matching Assistant for object detection mapping
-   - Return task configuration in response
-
-3. **Image Analysis** (`/v1/watcher/vision`)
-   - Requires vision-capable LLM (e.g., LLaVA, GPT-4 Vision)
-   - Accept multipart image + prompt
-   - Return analysis results with optional TTS audio
-
-4. **Task Detail View** (`/v2/watcher/talk/view_task_detail`)
-   - Store task flows in database
-   - Return task configuration details
-   - Support CRUD operations
-
-5. **Alarm Notifications** (`/v1/notification/event`)
-   - Receive and store alarm events
-   - Optional: Forward to external notification services
-   - Webhook integration for custom actions
+4. **Alarm Notifications** (`/v1/notification/event`)
+   - Receives and logs alarm events from device
+   - Stores in SQLite database with:
+     * Inference data (bounding boxes, classifications)
+     * Sensor data (temperature, humidity, CO2)
+     * Captured images (base64)
+   - Returns success response
 
 ### Prompt Enhancements
 
