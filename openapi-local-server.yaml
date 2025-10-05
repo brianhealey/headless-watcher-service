@@ -1,0 +1,564 @@
+openapi: 3.0.3
+info:
+  title: SenseCAP Watcher Local Server API
+  description: |
+    OpenAPI specification for the SenseCAP Watcher IoT device local server integration.
+
+    This specification describes the exact API that local servers must implement to be compatible
+    with the SenseCAP Watcher firmware. All schemas are derived from the factory firmware source code.
+
+    **Key Points:**
+    - All endpoints expect JSON payloads
+    - Authentication uses custom token header
+    - Device EUI is included in all requests
+    - Response codes must be exact (200 for HTTP alarm, 200 for image analyzer)
+  version: 1.0.0
+  contact:
+    name: SenseCAP Watcher Firmware
+    url: https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: https://sensecraft-aiservice-api.seeed.cc
+    description: Production cloud server (for reference)
+  - url: https://sensecraft-aiservice-test-api.seeed.cc
+    description: Test cloud server (for reference)
+
+tags:
+  - name: notification
+    description: HTTP alarm and notification endpoints
+  - name: vision
+    description: Image analysis and AI vision endpoints
+  - name: audio
+    description: Audio streaming and voice interaction endpoints
+
+security:
+  - DeviceToken: []
+
+paths:
+  /v1/notification/event:
+    post:
+      tags:
+        - notification
+      summary: Receive device alarm/notification events
+      description: |
+        Receives alarm events from the SenseCAP Watcher device including:
+        - Object detection alerts with bounding boxes
+        - Classification results
+        - Sensor readings (temperature, humidity, CO2)
+        - Base64-encoded preview images
+
+        **Configuration Index:** CFG_ITEM_TYPE1_NOTIFICATION_PROXY (3)
+
+        **Timeout:** 30 seconds (hardcoded)
+
+        **Silence Duration:** Device implements rate limiting (default 30s between alarms)
+      operationId: receiveNotificationEvent
+      security:
+        - LocalToken: []
+        - DeviceToken: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceEUI'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationEventRequest'
+            examples:
+              objectDetection:
+                summary: Object detection with sensor data
+                value:
+                  requestId: "550e8400-e29b-41d4-a716-446655440000"
+                  deviceEui: "2CF7F1C04430000C"
+                  events:
+                    timestamp: 1704067200000
+                    text: "Person detected"
+                    img: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+                    data:
+                      inference:
+                        boxes:
+                          - [120, 80, 200, 300, 95, 0]
+                          - [350, 100, 150, 250, 87, 0]
+                        classes_name:
+                          - "person"
+                          - "car"
+                      sensor:
+                        temperature: 23.5
+                        humidity: 65
+                        CO2: 450
+              classification:
+                summary: Classification result
+                value:
+                  requestId: "550e8400-e29b-41d4-a716-446655440001"
+                  deviceEui: "2CF7F1C04430000C"
+                  events:
+                    timestamp: 1704067200000
+                    text: ""
+                    img: ""
+                    data:
+                      inference:
+                        classes:
+                          - [98, 2]
+                          - [75, 5]
+                        classes_name:
+                          - "cat"
+                          - "dog"
+                          - "person"
+      responses:
+        '200':
+          description: Event received successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                properties:
+                  code:
+                    type: integer
+                    description: Must be exactly 200 for success
+                    enum: [200]
+                    example: 200
+        '401':
+          description: Unauthorized - invalid token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 401
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 500
+
+  /v1/watcher/vision:
+    post:
+      tags:
+        - vision
+      summary: Analyze image with AI vision service
+      description: |
+        Receives base64-encoded images for AI analysis. The server should:
+        - Analyze the image based on the provided prompt and type
+        - Optionally return audio response (base64-encoded)
+        - Optionally return annotated/modified image (base64-encoded)
+
+        **Configuration Index:** CFG_ITEM_TYPE1_IMAGE_ANALYZER (1)
+
+        **Timeouts:**
+        - Cloud service: 30 seconds
+        - Local service: 120 seconds (2 minutes)
+
+        **Output Behavior:**
+        - Output forwarded if `type == 0` (RECOGNIZE) OR `state == 1`
+        - Otherwise result is consumed
+      operationId: analyzeImage
+      security:
+        - LocalToken: []
+        - DeviceToken: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceEUI'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageAnalyzerRequest'
+            examples:
+              monitoring:
+                summary: Monitoring mode with prompt
+                value:
+                  img: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+                  prompt: "Is there a person in the frame?"
+                  audio_txt: "Check if anyone is home"
+                  type: 1
+              recognize:
+                summary: Recognition mode
+                value:
+                  img: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+                  prompt: ""
+                  audio_txt: ""
+                  type: 0
+      responses:
+        '200':
+          description: Image analyzed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - data
+                properties:
+                  code:
+                    type: integer
+                    description: Must be exactly 200 for success
+                    enum: [200]
+                    example: 200
+                  data:
+                    $ref: '#/components/schemas/ImageAnalyzerResponse'
+              examples:
+                withAudio:
+                  summary: Response with audio
+                  value:
+                    code: 200
+                    data:
+                      state: 1
+                      type: 1
+                      audio: "SUQzBAAAAAAAI1RTU0UAAAA..."
+                      img: ""
+                noEvent:
+                  summary: No significant event detected
+                  value:
+                    code: 200
+                    data:
+                      state: 0
+                      type: 1
+                      audio: ""
+                      img: ""
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+        '500':
+          description: Analysis failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 500
+
+  /v2/watcher/talk/audio_stream:
+    post:
+      tags:
+        - audio
+      summary: Receive audio stream from device
+      description: |
+        Receives streaming audio data from the SenseCAP Watcher device during voice interactions.
+
+        The device sends raw audio data as binary stream (application/octet-stream).
+        Each request includes a session ID to track the conversation.
+
+        **API Version:** V2
+
+        **Content-Type:** application/octet-stream (raw audio binary data)
+
+        **Expected Response:** 200 status to allow device to continue streaming
+
+      operationId: receiveAudioStream
+      security:
+        - LocalToken: []
+        - DeviceToken: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceEUI'
+        - name: Session-Id
+          in: header
+          required: true
+          description: UUID for the voice interaction session
+          schema:
+            type: string
+            format: uuid
+            example: "2267a122-a31e-4a4a-a013-3d5d39d84f68"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: Raw audio stream data (format depends on device encoding)
+      responses:
+        '200':
+          description: Audio stream received successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                properties:
+                  code:
+                    type: integer
+                    description: Must be 200 for success
+                    enum: [200]
+                    example: 200
+                  message:
+                    type: string
+                    example: "Audio stream received"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid audio stream"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to process audio"
+
+components:
+  securitySchemes:
+    LocalToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Token as configured in local service settings (used as-is, no prefix).
+        Example: `my-secret-token` or `Bearer my-token`
+    DeviceToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Cloud service token with "Device " prefix.
+        Format: `Device <base64(eui:ai_key)>`
+        Example: `Device MTIzNDU2Nzg5MEFCQ0RFRjpteS1haS1rZXk=`
+
+  parameters:
+    DeviceEUI:
+      name: API-OBITER-DEVICE-EUI
+      in: header
+      required: true
+      description: 16-character hexadecimal device EUI (8 bytes)
+      schema:
+        type: string
+        pattern: '^[0-9A-Fa-f]{16}$'
+        example: "2CF7F1C04430000C"
+
+  schemas:
+    NotificationEventRequest:
+      type: object
+      required:
+        - requestId
+        - deviceEui
+        - events
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: UUID v4 generated for this request
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        deviceEui:
+          type: string
+          pattern: '^[0-9A-Fa-f]{16}$'
+          description: 16-character hexadecimal device EUI
+          example: "2CF7F1C04430000C"
+        events:
+          type: object
+          description: Event data (fields present depend on configuration)
+          properties:
+            timestamp:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds (present if time_en=true)
+              example: 1704067200000
+            text:
+              type: string
+              description: Custom text message (present if text_en=true)
+              example: "Motion detected in living room"
+            img:
+              type: string
+              format: byte
+              description: Base64-encoded JPEG image (small, present if image_en=true)
+              example: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+            data:
+              type: object
+              properties:
+                inference:
+                  $ref: '#/components/schemas/InferenceData'
+                sensor:
+                  $ref: '#/components/schemas/SensorData'
+
+    InferenceData:
+      type: object
+      description: AI inference results (boxes OR classes, plus classes_name)
+      properties:
+        boxes:
+          type: array
+          description: Bounding box detections (INFERENCE_TYPE_BOX)
+          items:
+            $ref: '#/components/schemas/BoundingBox'
+        classes:
+          type: array
+          description: Classification results (INFERENCE_TYPE_CLASS)
+          items:
+            $ref: '#/components/schemas/Classification'
+        classes_name:
+          type: array
+          description: Array of class names indexed by target ID
+          items:
+            type: string
+          example: ["person", "car", "dog", "cat"]
+
+    BoundingBox:
+      type: array
+      description: '[x, y, width, height, confidence_score, class_id]'
+      minItems: 6
+      maxItems: 6
+      items:
+        type: integer
+      example: [120, 80, 200, 300, 95, 0]
+
+    Classification:
+      type: array
+      description: '[confidence_score, class_id] - Note: C struct has target first, but JSON serialization outputs score first'
+      minItems: 2
+      maxItems: 2
+      items:
+        type: integer
+      example: [95, 0]
+
+    SensorData:
+      type: object
+      description: Sensor readings (fields present depend on available sensors)
+      properties:
+        temperature:
+          type: number
+          format: float
+          description: Temperature in Celsius (from SHT4x or SCD4x)
+          example: 23.5
+        humidity:
+          type: integer
+          description: Humidity percentage (from SHT4x or SCD4x)
+          minimum: 0
+          maximum: 100
+          example: 65
+        CO2:
+          type: integer
+          description: CO2 concentration in PPM (from SCD4x only)
+          example: 450
+
+    ImageAnalyzerRequest:
+      type: object
+      required:
+        - img
+        - prompt
+        - audio_txt
+        - type
+      properties:
+        img:
+          type: string
+          format: byte
+          description: Base64-encoded JPEG image (large resolution)
+          example: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+        prompt:
+          type: string
+          description: AI prompt/instruction (empty string if not configured)
+          example: "Is there a person in the frame?"
+        audio_txt:
+          type: string
+          description: Audio transcription text for context (empty string if not available)
+          example: "Check if anyone is in the living room"
+        type:
+          type: integer
+          description: Analysis type
+          enum: [0, 1]
+          example: 1
+          x-enum-descriptions:
+            - "0: RECOGNIZE - Analyze/recognize objects in pictures"
+            - "1: MONITORING - Monitor behavior (default)"
+
+    ImageAnalyzerResponse:
+      type: object
+      required:
+        - state
+        - type
+      properties:
+        state:
+          type: integer
+          description: Processing state/result status
+          enum: [0, 1]
+          example: 1
+          x-enum-descriptions:
+            - "0: No significant event detected"
+            - "1: Event/object detected requiring action"
+        type:
+          type: integer
+          description: Echo of request type or updated type from server
+          enum: [0, 1]
+          example: 1
+        audio:
+          type: string
+          format: byte
+          description: Base64-encoded audio response (WAV/MP3, optional)
+          example: "SUQzBAAAAAAAI1RTU0UAAAA..."
+        img:
+          type: string
+          format: byte
+          description: Base64-encoded replacement/annotated image (optional)
+          example: "/9j/4AAQSkZJRgABAQEAYABgAAD..."
+
+  examples:
+    SHT4xSensorData:
+      summary: SHT4x sensor (temperature + humidity)
+      value:
+        temperature: 23.5
+        humidity: 65
+
+    SCD4xSensorData:
+      summary: SCD4x sensor (temperature + humidity + CO2)
+      value:
+        temperature: 22.8
+        humidity: 60
+        CO2: 450
+
+    BothSensorsData:
+      summary: Multiple sensors (SHT4x + SCD4x)
+      description: |
+        When both sensors are present, SHT4x values are used for temperature/humidity
+        unless they are NULL, then SCD4x values are used. CO2 is always from SCD4x.
+      value:
+        temperature: 23.5
+        humidity: 65
+        CO2: 450
+
+    ObjectDetectionInference:
+      summary: Object detection with bounding boxes
+      value:
+        boxes:
+          - [120, 80, 200, 300, 95, 0]
+          - [350, 100, 150, 250, 87, 0]
+        classes_name:
+          - "person"
+          - "car"
+
+    ClassificationInference:
+      summary: Classification results
+      value:
+        classes:
+          - [98, 2]
+          - [75, 5]
+          - [45, 1]
+        classes_name:
+          - "background"
+          - "cat"
+          - "dog"
