@@ -384,6 +384,8 @@ make build
 
 ## License
 
+MIT License - see [LICENSE](LICENSE) file for details.
+
 This implementation is based on the SenseCAP Watcher factory firmware source code analysis.
 
 ## References
