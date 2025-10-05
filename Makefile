@@ -5,7 +5,17 @@ BINARY_NAME=sensecap-server
 PORT?=8834
 TOKEN?=
 PIPER_MODEL_DIR=internal/models/piper
-PIPER_MODEL_URL=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium
+
+# Piper voice configuration (override with PIPER_VOICE=en_US-amy-medium make download-models)
+PIPER_VOICE ?= en_US-lessac-medium
+
+# Parse voice config: en_US-lessac-medium -> en/en_US/lessac/medium
+VOICE_PARTS = $(subst -, ,$(PIPER_VOICE))
+PIPER_LANG := $(word 1,$(VOICE_PARTS))
+PIPER_VOICE_NAME := $(word 2,$(VOICE_PARTS))
+PIPER_QUALITY := $(word 3,$(VOICE_PARTS))
+PIPER_LOCALE := $(word 1,$(subst _, ,$(PIPER_LANG)))
+PIPER_MODEL_URL=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$(PIPER_LOCALE)/$(PIPER_LANG)/$(PIPER_VOICE_NAME)/$(PIPER_QUALITY)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -13,20 +23,21 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-download-models: ## Download Piper TTS model
-	@echo "Downloading Piper TTS model..."
+download-models: ## Download Piper TTS model (use PIPER_VOICE=en_US-amy-medium to change voice)
+	@echo "Downloading Piper TTS model: $(PIPER_VOICE)..."
+	@echo "URL: $(PIPER_MODEL_URL)"
 	@mkdir -p $(PIPER_MODEL_DIR)
-	@if [ ! -f "$(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx" ]; then \
-		echo "Downloading en_US-lessac-medium.onnx..."; \
-		curl -L -o $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx $(PIPER_MODEL_URL)/en_US-lessac-medium.onnx; \
+	@if [ ! -f "$(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx" ]; then \
+		echo "Downloading $(PIPER_VOICE).onnx..."; \
+		curl -L -o $(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx $(PIPER_MODEL_URL)/$(PIPER_VOICE).onnx; \
 	else \
-		echo "Model already exists: $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx"; \
+		echo "Model already exists: $(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx"; \
 	fi
-	@if [ ! -f "$(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json" ]; then \
-		echo "Downloading en_US-lessac-medium.onnx.json..."; \
-		curl -L -o $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json $(PIPER_MODEL_URL)/en_US-lessac-medium.onnx.json; \
+	@if [ ! -f "$(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx.json" ]; then \
+		echo "Downloading $(PIPER_VOICE).onnx.json..."; \
+		curl -L -o $(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx.json $(PIPER_MODEL_URL)/$(PIPER_VOICE).onnx.json; \
 	else \
-		echo "Model config already exists: $(PIPER_MODEL_DIR)/en_US-lessac-medium.onnx.json"; \
+		echo "Model config already exists: $(PIPER_MODEL_DIR)/$(PIPER_VOICE).onnx.json"; \
 	fi
 	@echo "Model download complete"
 

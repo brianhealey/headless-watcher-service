@@ -226,8 +226,46 @@ Receive device notifications and sensor data.
 | `OLLAMA_URL` | http://localhost:11434 | Ollama LLM service |
 | `OLLAMA_MODEL` | llama3.1:8b-instruct-q4_1 | LLM model |
 | `LLAVA_MODEL` | llava:7b | Vision model |
+| `PIPER_VOICE` | en_US-lessac-medium | Piper TTS voice model |
 | `API_HOST` | localhost | API callback host |
 | `API_SCHEMA` | http | API callback schema |
+
+### Changing TTS Voice
+
+The Piper TTS voice can be customized by setting the `PIPER_VOICE` environment variable. Available voices can be browsed at [Piper Voices](https://huggingface.co/rhasspy/piper-voices/tree/v1.0.0/en/en_US).
+
+**Popular English voices:**
+
+| Voice | Description | Quality | Download Command |
+|-------|-------------|---------|------------------|
+| `en_US-lessac-medium` | Neutral, clear (default) | Medium | Default |
+| `en_US-amy-medium` | Female, professional | Medium | `PIPER_VOICE=en_US-amy-medium make download-models` |
+| `en_US-ryan-medium` | Male, deep | Medium | `PIPER_VOICE=en_US-ryan-medium make download-models` |
+| `en_US-kristin-medium` | Female, warm | Medium | `PIPER_VOICE=en_US-kristin-medium make download-models` |
+| `en_US-danny-low` | Male, fast | Low | `PIPER_VOICE=en_US-danny-low make download-models` |
+
+**To change the voice:**
+
+1. **Download the voice model:**
+   ```bash
+   PIPER_VOICE=en_US-amy-medium make download-models
+   ```
+
+2. **Set environment variable in `.env`:**
+   ```bash
+   PIPER_VOICE=en_US-amy-medium
+   ```
+
+3. **Restart the audio service:**
+   ```bash
+   # If using Docker
+   docker-compose restart audio-service
+
+   # If running locally
+   # Restart the Python audio service
+   ```
+
+The voice will be automatically loaded on startup.
 
 ### Command-Line Flags
 

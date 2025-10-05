@@ -27,6 +27,8 @@ services:
     container_name: sensecap-audio
     ports:
       - "8835:8835"
+    environment:
+      - PIPER_VOICE=${PIPER_VOICE:-en_US-lessac-medium}
     depends_on:
       - ollama
     healthcheck:

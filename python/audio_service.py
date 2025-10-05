@@ -26,7 +26,9 @@ whisper_model = whisper.load_model("base")
 logger.info("Whisper model loaded")
 
 logger.info("Loading Piper TTS model...")
-piper_model_path = "models/piper/en_US-lessac-medium.onnx"
+piper_voice_name = os.environ.get("PIPER_VOICE", "en_US-lessac-medium")
+piper_model_path = f"models/piper/{piper_voice_name}.onnx"
+logger.info(f"Loading Piper voice: {piper_voice_name}")
 piper_voice = PiperVoice.load(piper_model_path)
 logger.info("Piper TTS model loaded")
 
@@ -34,7 +36,7 @@ logger.info("Piper TTS model loaded")
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
-    return jsonify({"status": "ok", "models": {"whisper": "base", "piper": "en_US-lessac-medium"}})
+    return jsonify({"status": "ok", "models": {"whisper": "base", "piper": piper_voice_name}})
 
 
 @app.route('/transcribe', methods=['POST'])
