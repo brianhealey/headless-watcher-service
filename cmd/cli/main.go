@@ -180,11 +180,38 @@ func (m *Menu) viewDeviceInfo() error {
 	if himax, ok := data["himaxsoftwareversion"]; ok {
 		fmt.Printf("Himax Version: %v\n", himax)
 	}
-	fmt.Printf("Battery: %v%% (%v mV)\n", data["batterypercent"], data["voltage"])
-	fmt.Printf("Brightness: %v%%\n", data["brightness"])
-	fmt.Printf("Sound: %v%%\n", data["sound"])
-	fmt.Printf("RGB Switch: %v\n", data["rgbswitch"])
-	fmt.Printf("Timezone: %v\n", data["timezone"])
+
+	// Format numeric values properly
+	batteryPercent := 0
+	if v, ok := data["batterypercent"].(float64); ok {
+		batteryPercent = int(v)
+	}
+	voltage := 0
+	if v, ok := data["voltage"].(float64); ok {
+		voltage = int(v)
+	}
+	brightness := 0
+	if v, ok := data["brightness"].(float64); ok {
+		brightness = int(v)
+	}
+	sound := 0
+	if v, ok := data["sound"].(float64); ok {
+		sound = int(v)
+	}
+	rgbSwitch := 0
+	if v, ok := data["rgbswitch"].(float64); ok {
+		rgbSwitch = int(v)
+	}
+	timezone := 0
+	if v, ok := data["timezone"].(float64); ok {
+		timezone = int(v)
+	}
+
+	fmt.Printf("Battery: %d%% (%d mV)\n", batteryPercent, voltage)
+	fmt.Printf("Brightness: %d%%\n", brightness)
+	fmt.Printf("Sound: %d%%\n", sound)
+	fmt.Printf("RGB Switch: %d\n", rgbSwitch)
+	fmt.Printf("Timezone: %d\n", timezone)
 	fmt.Printf("Timestamp: %v\n", data["timestamp"])
 
 	return nil
@@ -482,12 +509,39 @@ func (m *Menu) viewTaskFlowStatus() error {
 	}
 
 	fmt.Println("\n=== Task Flow Status ===")
-	fmt.Printf("Status: %v\n", data["status"])
-	fmt.Printf("Task ID: %v\n", data["tlid"])
-	fmt.Printf("Current Task: %v\n", data["ctd"])
+
+	// Handle numeric values that may be floats from JSON
+	status := 0
+	if v, ok := data["status"].(float64); ok {
+		status = int(v)
+	}
+
+	tlid := 0
+	if v, ok := data["tlid"].(float64); ok {
+		tlid = int(v)
+	}
+
+	ctd := int64(0)
+	if v, ok := data["ctd"].(float64); ok {
+		ctd = int64(v)
+	}
+
+	moduleErrCode := 0
+	if v, ok := data["module_err_code"].(float64); ok {
+		moduleErrCode = int(v)
+	}
+
+	percent := 0
+	if v, ok := data["percent"].(float64); ok {
+		percent = int(v)
+	}
+
+	fmt.Printf("Status: %d\n", status)
+	fmt.Printf("Task ID: %d\n", tlid)
+	fmt.Printf("Current Task: %d\n", ctd)
 	fmt.Printf("Module: %v\n", data["module"])
-	fmt.Printf("Module Error Code: %v\n", data["module_err_code"])
-	fmt.Printf("Progress: %v%%\n", data["percent"])
+	fmt.Printf("Module Error Code: %d\n", moduleErrCode)
+	fmt.Printf("Progress: %d%%\n", percent)
 
 	return nil
 }
