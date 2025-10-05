@@ -330,16 +330,18 @@ Provide a brief, conversational response (1-2 sentences max).`, transcription)
 // processTaskMode handles task automation requests
 func processTaskMode(transcription string, mode int, deviceEUI string) (string, error) {
 	// Step 1: Extract trigger condition
-	triggerPrompt := fmt.Sprintf(`You are a trigger condition extraction assistant. First you will remove the time, place, intervals, action after the trigger condition is triggered, device operations (such as turning on lights and playing sound) from your input, and then you can present simple and clear conditions based on user input. Just focus on the parts that are the object and the adverb or verb.
+	triggerPrompt := fmt.Sprintf(`Extract the trigger condition from this request. Remove time, place, intervals, and actions. Focus on what to detect.
 
 User input: "%s"
 
-Extract and return ONLY the core trigger condition. Be concise.`, transcription)
+CRITICAL: Respond with a simple phrase describing what to detect. No quotes. No punctuation at the end. Maximum 5 words.
+Example: "person enters room" or "cat on counter"`, transcription)
 
 	trigger, err := callOllamaSimple(triggerPrompt)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract trigger: %w", err)
 	}
+	trigger = cleanLLMResponse(trigger)
 	log.Printf("Extracted trigger condition: '%s'", trigger)
 
 	// Step 2: Match to COCO object classes
@@ -350,37 +352,54 @@ Extract and return ONLY the core trigger condition. Be concise.`, transcription)
 		"backpack", "umbrella", "handbag", "tie", "suitcase",
 	}
 
-	matchPrompt := fmt.Sprintf(`You are the word matching assistant. You start by analyzing the "Scenario", extracting keywords, or static keywords where behaviors occur (animals are preferred, e.g. human = person) and matching them with the "Target Keyword Selection List", and finally output the matching keyword.
+	matchPrompt := fmt.Sprintf(`You are the word matching assistant. Match the scenario to ONE keyword from the list.
 
 Scenario: "%s"
 
-Target Keyword Selection List: %s
+Target Keywords: %s
 
-Respond with ONLY the matched keyword from the list. If no match, respond with "person".`, trigger, strings.Join(cocoClasses, ", "))
+CRITICAL: Respond with ONLY ONE WORD from the list above. No explanation. No quotes. No punctuation.
+If the scenario mentions a human/man/woman/person, respond with: person
+Otherwise pick the most relevant keyword from the list.`, trigger, strings.Join(cocoClasses, ", "))
 
 	targetObject, err := callOllamaSimple(matchPrompt)
 	if err != nil {
 		log.Printf("WARNING: Object matching failed: %v", err)
 		targetObject = "person" // Default
 	}
+	targetObject = cleanLLMResponse(targetObject)
 	targetObject = strings.TrimSpace(strings.ToLower(targetObject))
 	log.Printf("Matched target object: '%s'", targetObject)
 
 	// Step 3: Generate headline
-	headlinePrompt := fmt.Sprintf(`You are a headline assistant that takes what a user enters and summarizes it into a headline of six words or less:
+	headlinePrompt := fmt.Sprintf(`Create a short headline summarizing this task.
 
 User input: "%s"
 
-Generate a concise headline (max 6 words):`, transcription)
+CRITICAL: Respond with a short headline. Maximum 6 words. No quotes. No punctuation at the end.
+Example: "Watch for delivery person" or "Monitor front door activity"`, transcription)
 
 	headline, err := callOllamaSimple(headlinePrompt)
 	if err != nil {
 		headline = "Task created" // Fallback
 	}
+	headline = cleanLLMResponse(headline)
 	headline = strings.TrimSpace(headline)
 	log.Printf("Generated headline: '%s'", headline)
 
-	// Step 4: Store task in database
+	// Step 4: Delete old tasks and store new task in database
+	// Device only supports one task at a time
+	oldTasks, err := database.GetTaskFlowsByDevice(deviceEUI)
+	if err == nil && len(oldTasks) > 0 {
+		for _, oldTask := range oldTasks {
+			if err := database.DeleteTaskFlow(oldTask.ID); err != nil {
+				log.Printf("WARNING: Failed to delete old task %d: %v", oldTask.ID, err)
+			} else {
+				log.Printf("Deleted old task: ID=%d, Headline='%s'", oldTask.ID, oldTask.Headline)
+			}
+		}
+	}
+
 	taskFlow := &database.TaskFlow{
 		DeviceEUI:        deviceEUI,
 		Name:             transcription, // Full original request
@@ -399,6 +418,23 @@ Generate a concise headline (max 6 words):`, transcription)
 
 	// Return confirmation message
 	return fmt.Sprintf("I've created a monitoring task: %s. I'll watch for %s.", headline, trigger), nil
+}
+
+// cleanLLMResponse removes quotes, extra whitespace, and trailing punctuation
+func cleanLLMResponse(response string) string {
+	// Trim whitespace
+	result := strings.TrimSpace(response)
+
+	// Remove surrounding quotes (single or double)
+	result = strings.Trim(result, "\"'")
+
+	// Remove trailing punctuation
+	result = strings.TrimRight(result, ".,!?;:")
+
+	// Trim again
+	result = strings.TrimSpace(result)
+
+	return result
 }
 
 // callOllamaSimple is a helper to call Ollama with a simple prompt

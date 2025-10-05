@@ -75,7 +75,7 @@ func main() {
 
 	// Register V2 endpoints
 	v2.HandleFunc("/watcher/talk/audio_stream", handlers.AudioStreamHandler).Methods("POST")
-	v2.HandleFunc("/watcher/talk/view_task_detail", handlers.TaskDetailHandler).Methods("POST")
+	v2.HandleFunc("/watcher/talk/view_task_detail", handlers.TaskDetailHandler).Methods("GET", "POST")
 
 	// Health check endpoint (no auth required)
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
