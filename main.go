@@ -1,43 +1,26 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
+	"github.com/brianhealey/sensecap-server/config"
 	"github.com/brianhealey/sensecap-server/database"
 	"github.com/brianhealey/sensecap-server/handlers"
 	"github.com/brianhealey/sensecap-server/middleware"
 	"github.com/gorilla/mux"
 )
 
-const (
-	defaultPort  = "8834"
-	defaultToken = ""
-)
-
 func main() {
-	// Parse command-line flags
-	port := flag.String("port", defaultPort, "Server port")
-	token := flag.String("token", defaultToken, "Required authentication token (optional)")
-	dbPath := flag.String("db", "sensecap.db", "Path to SQLite database file")
-	flag.Parse()
-
-	// Override with environment variables if set
-	if envPort := os.Getenv("PORT"); envPort != "" {
-		*port = envPort
-	}
-	if envToken := os.Getenv("AUTH_TOKEN"); envToken != "" {
-		*token = envToken
-	}
-	if envDB := os.Getenv("DB_PATH"); envDB != "" {
-		*dbPath = envDB
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// Initialize database
-	if err := database.Initialize(*dbPath); err != nil {
+	if err := database.Initialize(cfg.Database.Path); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer database.Close()
@@ -54,9 +37,9 @@ func main() {
 	v1 := r.PathPrefix("/v1").Subrouter()
 
 	// Apply authentication middleware if token is configured
-	if *token != "" {
-		log.Printf("Authentication enabled with token: %s", *token)
-		v1.Use(middleware.AuthValidator(*token))
+	if cfg.Auth.Enabled {
+		log.Printf("Authentication enabled with token: %s", cfg.Auth.Token)
+		v1.Use(middleware.AuthValidator(cfg.Auth.Token))
 	} else {
 		log.Println("WARNING: Authentication disabled (no token configured)")
 	}
@@ -69,8 +52,8 @@ func main() {
 	v2 := r.PathPrefix("/v2").Subrouter()
 
 	// Apply authentication middleware to v2 if token is configured
-	if *token != "" {
-		v2.Use(middleware.AuthValidator(*token))
+	if cfg.Auth.Enabled {
+		v2.Use(middleware.AuthValidator(cfg.Auth.Token))
 	}
 
 	// Register V2 endpoints
@@ -88,17 +71,19 @@ func main() {
 	r.PathPrefix("/").HandlerFunc(handlers.NotFoundHandler)
 
 	// Print startup information
-	printBanner(*port, *token)
+	printBanner(cfg)
 
 	// Start server
-	addr := ":" + *port
+	addr := ":" + cfg.Server.Port
 	log.Printf("Server starting on %s", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
 
-func printBanner(port, token string) {
+func printBanner(cfg *config.Config) {
+	port := cfg.Server.Port
+	token := cfg.Auth.Token
 	fmt.Println()
 	fmt.Println("================================================================================")
 	fmt.Println("  SenseCAP Watcher Local Server")

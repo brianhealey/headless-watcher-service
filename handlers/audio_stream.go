@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -32,12 +31,6 @@ func AudioStreamHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Log the request
 	logAudioStreamRequest(r, deviceEUI, sessionID, authToken, body)
-
-	// Save audio file for debugging
-	debugFile := fmt.Sprintf("debug_audio_%s.bin", sessionID)
-	if err := os.WriteFile(debugFile, body, 0644); err == nil {
-		log.Printf("DEBUG: Saved audio to %s", debugFile)
-	}
 
 	// Step 1: Transcribe audio using Whisper
 	log.Println("Step 1: Transcribing audio with Whisper...")

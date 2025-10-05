@@ -49,12 +49,10 @@ func AuthValidator(requiredToken string) func(http.Handler) http.Handler {
 			if requiredToken != "" {
 				// If a required token is configured, validate it
 				if authHeader != requiredToken {
-					log.Printf("WARN: Invalid or missing Authorization header (expected: %s, got: %s)",
+					log.Printf("ERROR: Invalid or missing Authorization header (expected: %s, got: %s)",
 						requiredToken, authHeader)
-					// For now, just log the warning but allow the request through
-					// Uncomment below to enforce authentication:
-					// http.Error(w, `{"code": 401}`, http.StatusUnauthorized)
-					// return
+					http.Error(w, `{"code": 401}`, http.StatusUnauthorized)
+					return
 				}
 			}
 

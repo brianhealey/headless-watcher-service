@@ -91,39 +91,39 @@ func convertToNodeREDFormat(task *database.TaskFlow) map[string]interface{} {
 	// Node 1: AI camera with detection conditions
 	aiCameraNode := map[string]interface{}{
 		"id":    1,
-		"type":  "ai camera",
+		"type":  TFModuleTypeAICamera,
 		"index": 0,
 		"params": map[string]interface{}{
-			"modes":      0,         // TF_MODULE_AI_CAMERA_MODES_INFERENCE
-			"model_type": modelType, // 0=cloud, 1=person, 2=pet, 3=gesture
+			"modes":      TFModuleAICameraModesInference,
+			"model_type": modelType,
 			"conditions": []map[string]interface{}{
 				{
 					"class": task.TargetObjects[0],
-					"mode":  1,   // 1 = appear/disappear detection
-					"type":  2,   // Type 2 from preset
+					"mode":  TFModuleAICameraModeAppear,
+					"type":  TFModuleAICameraTypePreset,
 					"num":   0,
 				},
 			},
-			"conditions_combo": 0, // AND
+			"conditions_combo": TFModuleAICameraConditionsComboAND,
 			"silent_period": map[string]interface{}{
-				"silence_duration": 5, // 5 seconds between triggers
+				"silence_duration": int(DefaultSilenceDuration.Seconds()),
 			},
-			"output_type": 1, // 1 = small img AND large img (large img sent to backend for LLaVA)
-			"shutter":     0, // TF_MODULE_AI_CAMERA_SHUTTER_TRIGGER_CONSTANTLY
+			"output_type": TFModuleAICameraOutputBoth,
+			"shutter":     TFModuleAICameraShutterTriggerConstantly,
 		},
-		"wires": [][]int{{2}}, // Connect to node 2 (alarm trigger)
+		"wires": [][]int{{2}}, // Connect to node 2 (image analyzer)
 	}
 
 	// Node 2: Image analyzer - sends large image to LLaVA for verification
 	imageAnalyzerNode := map[string]interface{}{
 		"id":    2,
-		"type":  "image analyzer",
+		"type":  TFModuleTypeImageAnalyzer,
 		"index": 1,
 		"params": map[string]interface{}{
 			"body": map[string]interface{}{
-				"prompt":    task.TriggerCondition, // LLM prompt for verification
-				"type":      1,                      // TF_MODULE_IMG_ANALYZER_TYPE_MONITORING (returns state for alarm triggering)
-				"audio_txt": "",                     // No audio text
+				"prompt":    task.TriggerCondition,
+				"type":      TFModuleImgAnalyzerTypeMonitoring,
+				"audio_txt": "",
 			},
 		},
 		"wires": [][]int{{3, 4}}, // Connect to both local alarm (3) and sensecraft alarm (4)
@@ -132,14 +132,14 @@ func convertToNodeREDFormat(task *database.TaskFlow) map[string]interface{} {
 	// Node 3: Local alarm - beep/LED/display on device
 	localAlarmNode := map[string]interface{}{
 		"id":    3,
-		"type":  "local alarm",
+		"type":  TFModuleTypeLocalAlarm,
 		"index": 2,
 		"params": map[string]interface{}{
-			"sound":    1,  // Enable sound
-			"rgb":      1,  // Enable RGB LED
-			"img":      0,  // Don't show image
-			"text":     0,  // Don't show text
-			"duration": 5,  // 5 seconds
+			"sound":    1,
+			"rgb":      1,
+			"img":      0,
+			"text":     0,
+			"duration": int(DefaultAlarmDuration.Seconds()),
 		},
 		"wires": [][]int{}, // Terminal node
 	}
@@ -147,10 +147,10 @@ func convertToNodeREDFormat(task *database.TaskFlow) map[string]interface{} {
 	// Node 4: SenseCraft alarm - sends HTTP notification to our server
 	sensecraftAlarmNode := map[string]interface{}{
 		"id":    4,
-		"type":  "sensecraft alarm",
+		"type":  TFModuleTypeSenseCraftAlarm,
 		"index": 3,
 		"params": map[string]interface{}{
-			"silence_duration": 30, // 30 seconds between notifications
+			"silence_duration": int(DefaultNotificationSilence.Seconds()),
 		},
 		"wires": [][]int{}, // Terminal node
 	}
